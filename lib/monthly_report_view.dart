@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'report_exporter.dart';
 
 class MilestoneRecord {
   final String key;
@@ -176,62 +177,158 @@ class _MonthlyReportViewState extends State<MonthlyReportView> {
   double get _minPh => _records.isEmpty ? 0.0 : _records.map((r) => r.ph).reduce(math.min);
   double get _maxPh => _records.isEmpty ? 0.0 : _records.map((r) => r.ph).reduce(math.max);
 
-  void _exportCsv() {
+  bool _isExporting = false;
+
+  Future<void> _triggerPdfDownload() async {
+    if (_records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No records available for this month.')));
+      return;
+    }
+
+    setState(() => _isExporting = true);
+    try {
+      await ReportExporter.downloadPdf(
+        monthLabel: _monthLabel,
+        monthKey: _monthKey,
+        records: _records,
+        avgTemp: _avgTemp,
+        minTemp: _minTemp,
+        maxTemp: _maxTemp,
+        avgTds: _avgTds,
+        minTds: _minTds,
+        maxTds: _maxTds,
+        avgPh: _avgPh,
+        minPh: _minPh,
+        maxPh: _maxPh,
+        relayNames: widget.relayNames,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Future<void> _triggerExcelDownload() async {
+    if (_records.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No records available for this month.')));
+      return;
+    }
+
+    setState(() => _isExporting = true);
+    try {
+      await ReportExporter.downloadExcelCsv(
+        monthKey: _monthKey,
+        records: _records,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Color(0xFF0F172A),
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Color(0xFF2DD4BF), size: 18),
+                SizedBox(width: 8),
+                Text('Excel (.csv) downloaded & copied to clipboard!'),
+              ],
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error exporting Excel: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  void _showExportSheet() {
     if (_records.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No records to export.')));
       return;
     }
 
-    final buffer = StringBuffer();
-    buffer.writeln('Date,Time,Milestone,Temperature(°C),TDS(ppm),pH,Pump1,Pump2,Relay3,Relay4');
-
-    for (final r in _records) {
-      final r1 = r.relays['1'] == true ? 'ON' : 'OFF';
-      final r2 = r.relays['2'] == true ? 'ON' : 'OFF';
-      final r3 = r.relays['3'] == true ? 'ON' : 'OFF';
-      final r4 = r.relays['4'] == true ? 'ON' : 'OFF';
-      buffer.writeln('${r.date},${r.time},${r.milestoneName},${r.temperature},${r.tds},${r.ph},$r1,$r2,$r3,$r4');
-    }
-
-    Clipboard.setData(ClipboardData(text: buffer.toString()));
-
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_outline, color: Color(0xFF2DD4BF)),
-            SizedBox(width: 12),
-            Text('CSV Data Copied', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${_records.length} milestone records copied to clipboard in standard CSV format.',
-              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: const Color(0xFF020617), borderRadius: BorderRadius.circular(12)),
-              child: const Text(
-                'You can paste directly into Google Sheets, Microsoft Excel, or send via WhatsApp / Email.',
-                style: TextStyle(color: Color(0xFF38BDF8), fontSize: 12),
+      backgroundColor: const Color(0xFF0F172A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(2)),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK', style: TextStyle(color: Color(0xFF2DD4BF), fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              const Text(
+                'EXPORT MONTHLY REPORT',
+                style: TextStyle(color: Color(0xFF38BDF8), fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Download Report for $_monthLabel',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 20),
+              // PDF Option
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                tileColor: const Color(0xFF1E293B).withValues(alpha: 0.6),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFF10B981).withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFF10B981), size: 22),
+                ),
+                title: const Text('Download Printable PDF Report', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Formatted audit sheet with KPIs and milestones table', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF64748B), size: 14),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _triggerPdfDownload();
+                },
+              ),
+              const SizedBox(height: 12),
+              // Excel Option
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                tileColor: const Color(0xFF1E293B).withValues(alpha: 0.6),
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFF38BDF8).withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.table_chart_rounded, color: Color(0xFF38BDF8), size: 22),
+                ),
+                title: const Text('Download Excel Spreadsheet (.CSV)', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Raw sensor data table for Microsoft Excel & Google Sheets', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 11)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Color(0xFF64748B), size: 14),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _triggerExcelDownload();
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -265,6 +362,10 @@ class _MonthlyReportViewState extends State<MonthlyReportView> {
         else ...[
           // --- KPI SUMMARY CARDS ---
           _buildKpiGrid(),
+          const SizedBox(height: 16),
+
+          // --- 1-CLICK EXPORT BAR ---
+          _buildExportActionBar(),
           const SizedBox(height: 24),
 
           // --- CHART SECTION ---
@@ -320,11 +421,117 @@ class _MonthlyReportViewState extends State<MonthlyReportView> {
           ),
           const SizedBox(width: 4),
           IconButton(
-            onPressed: _exportCsv,
+            onPressed: _showExportSheet,
             icon: const Icon(Icons.file_download_outlined, color: Color(0xFF2DD4BF)),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            tooltip: 'Export CSV',
+            tooltip: 'Export Options',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportActionBar() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'ONE-CLICK REPORT EXPORT',
+                style: TextStyle(
+                  color: Color(0xFF38BDF8),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              if (_isExporting)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2DD4BF)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              // 1-Click PDF Button
+              Expanded(
+                child: GestureDetector(
+                  onTap: _isExporting ? null : _triggerPdfDownload,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0D9488), Color(0xFF14B8A6)],
+                      ),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF14B8A6).withValues(alpha: 0.25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Download PDF',
+                            style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // 1-Click Excel / CSV Button
+              Expanded(
+                child: GestureDetector(
+                  onTap: _isExporting ? null : _triggerExcelDownload,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+                    ),
+                    child: const FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.table_chart_rounded, color: Color(0xFF38BDF8), size: 18),
+                          SizedBox(width: 6),
+                          Text(
+                            'Download Excel',
+                            style: TextStyle(color: Color(0xFF38BDF8), fontSize: 13, fontWeight: FontWeight.w900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
