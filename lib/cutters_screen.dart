@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,13 +9,48 @@ class CuttersScreen extends StatelessWidget {
     final cleanNumber = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
     final fullNumber = cleanNumber.startsWith('91') ? cleanNumber : '91$cleanNumber';
     final message = Uri.encodeComponent('Hello $name, I would like to book a harvest service.');
-
-    final Uri nativeWhatsAppUri = Uri.parse('whatsapp://send?phone=$fullNumber&text=$message');
     final Uri webWhatsAppUri = Uri.parse('https://wa.me/$fullNumber?text=$message');
-    final Uri apiWhatsAppUri = Uri.parse('https://api.whatsapp.com/send?phone=$fullNumber&text=$message');
+
+    // 1. Web-Specific Launch (Must launch directly without async delays to prevent browser popup blockers)
+    if (kIsWeb) {
+      try {
+        final bool launched = await launchUrl(
+          webWhatsAppUri,
+          mode: LaunchMode.platformDefault,
+          webOnlyWindowName: '_blank',
+        );
+        if (launched) return;
+      } catch (e) {
+        debugPrint('Web WhatsApp launch error: $e');
+      }
+
+      // Web Fallback: Try api.whatsapp.com in new tab
+      final Uri apiWhatsAppUri = Uri.parse('https://api.whatsapp.com/send?phone=$fullNumber&text=$message');
+      try {
+        final bool launched = await launchUrl(
+          apiWhatsAppUri,
+          mode: LaunchMode.platformDefault,
+          webOnlyWindowName: '_blank',
+        );
+        if (launched) return;
+      } catch (_) {}
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Please allow popups to open WhatsApp for $name (+91 $cleanNumber)'),
+            backgroundColor: Colors.amber.shade900,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 2. Mobile Handling (Android / iOS)
+    final Uri nativeWhatsAppUri = Uri.parse('whatsapp://send?phone=$fullNumber&text=$message');
     final Uri telUri = Uri.parse('tel:$cleanNumber');
 
-    // 1. Try launching native WhatsApp app intent
+    // Try native WhatsApp app intent
     try {
       if (await canLaunchUrl(nativeWhatsAppUri)) {
         await launchUrl(nativeWhatsAppUri, mode: LaunchMode.externalApplication);
@@ -22,7 +58,7 @@ class CuttersScreen extends StatelessWidget {
       }
     } catch (_) {}
 
-    // 2. Try wa.me link with externalApplication
+    // Try wa.me link with externalApplication
     try {
       if (await canLaunchUrl(webWhatsAppUri)) {
         await launchUrl(webWhatsAppUri, mode: LaunchMode.externalApplication);
@@ -30,29 +66,7 @@ class CuttersScreen extends StatelessWidget {
       }
     } catch (_) {}
 
-    // 3. Try wa.me link with platformDefault
-    try {
-      if (await canLaunchUrl(webWhatsAppUri)) {
-        await launchUrl(webWhatsAppUri, mode: LaunchMode.platformDefault);
-        return;
-      }
-    } catch (_) {}
-
-    // 4. Try api.whatsapp.com with platformDefault
-    try {
-      if (await canLaunchUrl(apiWhatsAppUri)) {
-        await launchUrl(apiWhatsAppUri, mode: LaunchMode.platformDefault);
-        return;
-      }
-    } catch (_) {}
-
-    // 5. Direct launch attempt for web WhatsApp
-    try {
-      await launchUrl(webWhatsAppUri, mode: LaunchMode.externalApplication);
-      return;
-    } catch (_) {}
-
-    // 6. Graceful fallback: Open phone dialer if WhatsApp is unavailable on device
+    // Fallback: Open phone dialer if WhatsApp is unavailable on device
     try {
       if (await canLaunchUrl(telUri)) {
         await launchUrl(telUri);
@@ -122,63 +136,63 @@ class CuttersScreen extends StatelessWidget {
     required List<Color> gradientColors,
     required Color iconColor,
   }) {
-    return GestureDetector(
-      onTap: () => _openWhatsApp(context, phone, name),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), shape: BoxShape.circle),
-              child: Icon(Icons.support_agent_rounded, color: iconColor, size: 32),
-            ),
-            const SizedBox(width: 20),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
-                        child: Text(badge, style: TextStyle(color: iconColor, fontSize: 10, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(phone, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
-                ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _openWhatsApp(context, phone, name),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: gradientColors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8)),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), shape: BoxShape.circle),
+                child: Icon(Icons.support_agent_rounded, color: iconColor, size: 32),
               ),
-            ),
-            // Call button that redirects to WhatsApp
-            Tooltip(
-              message: 'Chat on WhatsApp',
-              child: InkWell(
-                onTap: () => _openWhatsApp(context, phone, name),
-                borderRadius: BorderRadius.circular(24),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(name, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8)),
+                          child: Text(badge, style: TextStyle(color: iconColor, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(phone, style: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 1.0)),
+                  ],
+                ),
+              ),
+              // WhatsApp Chat Button
+              Tooltip(
+                message: 'Chat on WhatsApp',
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: const BoxDecoration(
                     color: Color(0xFF25D366),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.call, color: Colors.white, size: 24),
+                  child: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 22),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
