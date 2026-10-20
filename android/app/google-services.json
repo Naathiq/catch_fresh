@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "251815145375",
+    "firebase_url": "https://fish-9705a-default-rtdb.firebaseio.com",
+    "project_id": "fish-9705a",
+    "storage_bucket": "fish-9705a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:251815145375:android:0567fbdbb44a1e9d5b17aa",
+        "android_client_info": {
+          "package_name": "com.example.catch_fresh"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "251815145375-tq0s1iv0glg9po045f0lrhkd4646pu3v.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB3pTBgWJTcSaIb3hINEHOCM4C5n65u7bU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "251815145375-tq0s1iv0glg9po045f0lrhkd4646pu3v.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

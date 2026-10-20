@@ -1,0 +1,29 @@
+name: Log Aquaculture Milestone Snapshots
+
+on:
+  schedule:
+    # Runs 4 times a day aligned to Indian Standard Time (UTC+5:30):
+    # 00:30 UTC = 06:00 AM IST (Morning)
+    # 06:30 UTC = 12:00 PM IST (Midday)
+    # 12:30 UTC = 06:00 PM IST (Evening)
+    # 18:30 UTC = 12:00 AM IST (Midnight)
+    - cron: '30 0,6,12,18 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub web console
+
+jobs:
+  snapshot:
+    name: Record Sensor Snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Milestone Snapshot Logger
+        run: node .github/scripts/log_snapshot.js

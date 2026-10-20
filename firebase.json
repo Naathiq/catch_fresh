@@ -1,0 +1,37 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "fish-9705a",
+          "appId": "1:251815145375:android:0567fbdbb44a1e9d5b17aa",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "fish-9705a",
+          "configurations": {
+            "android": "1:251815145375:android:0567fbdbb44a1e9d5b17aa",
+            "ios": "1:251815145375:ios:a146e1cdd3e3f8b05b17aa",
+            "web": "1:251815145375:web:9537fcfd7bf0664b5b17aa"
+          }
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
