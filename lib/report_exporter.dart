@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'monthly_report_view.dart';
+import 'platform_helper.dart';
 
 class ReportExporter {
   /// Generates a clean, professional PDF document for the monthly aquaculture report
@@ -311,6 +313,15 @@ class ReportExporter {
       relayNames: relayNames,
     );
 
+    if (kIsWeb) {
+      PlatformHelper.downloadFile(
+        pdfBytes,
+        'Catch_Fresh_Report_$monthKey.pdf',
+        'application/pdf',
+      );
+      return;
+    }
+
     await Printing.sharePdf(
       bytes: pdfBytes,
       filename: 'Catch_Fresh_Report_$monthKey.pdf',
@@ -343,6 +354,15 @@ class ReportExporter {
 
     // Also copy to clipboard for convenience
     Clipboard.setData(ClipboardData(text: csvContent));
+
+    if (kIsWeb) {
+      PlatformHelper.downloadFile(
+        bytes,
+        'Catch_Fresh_Report_$monthKey.csv',
+        'text/csv;charset=utf-8',
+      );
+      return;
+    }
 
     // Opens file download / share
     await Printing.sharePdf(

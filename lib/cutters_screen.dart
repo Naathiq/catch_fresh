@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'platform_helper.dart';
 
 class CuttersScreen extends StatelessWidget {
   const CuttersScreen({super.key});
@@ -9,26 +10,22 @@ class CuttersScreen extends StatelessWidget {
     final cleanNumber = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
     final fullNumber = cleanNumber.startsWith('91') ? cleanNumber : '91$cleanNumber';
     final message = Uri.encodeComponent('Hello $name, I would like to book a harvest service.');
-    final Uri webWhatsAppUri = Uri.parse('https://wa.me/$fullNumber?text=$message');
+    final String webUrlString = 'https://wa.me/$fullNumber?text=$message';
+    final Uri webWhatsAppUri = Uri.parse(webUrlString);
 
-    // 1. Web-Specific Launch (Must launch directly without async delays to prevent browser popup blockers)
+    // 1. Web-Specific Launch via DOM anchor click (Immune to browser popup blockers!)
     if (kIsWeb) {
       try {
-        final bool launched = await launchUrl(
-          webWhatsAppUri,
-          mode: LaunchMode.platformDefault,
-          webOnlyWindowName: '_blank',
-        );
-        if (launched) return;
+        PlatformHelper.openWebUrl(webUrlString);
+        return;
       } catch (e) {
-        debugPrint('Web WhatsApp launch error: $e');
+        debugPrint('Web DOM anchor launch error: $e');
       }
 
-      // Web Fallback: Try api.whatsapp.com in new tab
-      final Uri apiWhatsAppUri = Uri.parse('https://api.whatsapp.com/send?phone=$fullNumber&text=$message');
+      // Fallback via url_launcher if needed
       try {
         final bool launched = await launchUrl(
-          apiWhatsAppUri,
+          Uri.parse(webUrlString),
           mode: LaunchMode.platformDefault,
           webOnlyWindowName: '_blank',
         );
@@ -38,7 +35,7 @@ class CuttersScreen extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Please allow popups to open WhatsApp for $name (+91 $cleanNumber)'),
+            content: Text('Please allow popups or contact $name directly at +$fullNumber'),
             backgroundColor: Colors.amber.shade900,
           ),
         );
